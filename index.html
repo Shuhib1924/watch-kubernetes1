@@ -9,11 +9,13 @@
     <script src="https://unpkg.com/alpinejs"
             defer></script>
     <title>Document</title>
+
+
 </head>
 
-<body>
+<body x-data="autoReload()">
     <div class="container mx-auto p-8">
-        <h1 class="text-4xl font-bold text-blue-600 mb-4">🚀 Port Forwarding Fix Test!</h1>
+        <h1 class="text-4xl font-bold text-purple-600 mb-4">🚀 ALPINE.JS AUTO-RELOAD TEST!</h1>
         <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
             ✅ This should sync immediately and port forwarding should reconnect automatically!
         </div>
@@ -21,9 +23,143 @@
             🔄 Pod restarts → Port forwarding reconnects → You see changes immediately!
         </div>
     </div>
-    <div class="bg-violet-100 p-4 rounded mt-4">
-        🎉 Background sync test - Script running independently!
+    <div class="bg-purple-100 border border-purple-400 p-4 rounded mt-4">
+        🎉 ALPINE.JS POWERED AUTO-RELOAD: Clean, organized, and reactive!
     </div>
+    <div class="bg-blue-100 p-3 rounded mt-2 text-sm">
+        ⚡ How it works: Alpine.js checks for changes every 3 seconds → Auto-reloads when detected
+    </div>
+    
+    <!-- Auto-reload control -->
+    <div class="mt-4 p-4 bg-gray-50 rounded border">
+        <h3 class="font-semibold mb-2">🔧 Auto-reload Controls</h3>
+        <button @click="toggleAutoReload()"
+                class="px-4 py-2 rounded text-white font-medium"
+                :class="isActive ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'">
+            <span x-text="isActive ? '⏹️ Stop Auto-reload' : '▶️ Start Auto-reload'"></span>
+        </button>
+        <p class="text-sm text-gray-600 mt-2">
+            Status: <span :class="isActive ? 'text-green-600' : 'text-red-600'"
+                  x-text="isActive ? 'Active' : 'Stopped'"></span>
+        </p>
+    </div>
+    
+    <!-- Auto-reload status indicators -->
+    <div x-show="isReloading"
+         x-transition
+         class="fixed top-4 left-1/2 transform -translate-x-1/2 bg-green-500 text-white px-4 py-2 rounded-full text-sm shadow-lg z-50">
+        🔄 Reloading...
+    </div>
+    
+    <div class="fixed bottom-4 right-4 bg-blue-500 text-white px-3 py-1 rounded-full text-sm shadow-lg z-40"
+         :class="{ 'bg-green-500': isActive, 'bg-red-500': !isActive }">
+        <span x-text="isActive ? '🔄 Auto-reload ON' : '❌ Auto-reload OFF'"></span>
+    </div>
+    
+    <!-- Alpine.js Auto-reload Script -->
+    <script>
+        function autoReload() {
+            return {
+                isActive: true,
+                isReloading: false,
+                pageHash: '',
+                updateInterval: null,
+
+                init() {
+                    console.log('🚀 Alpine.js Auto-reload initialized');
+                    this.setInitialHash();
+                    this.startWatching();
+                },
+
+                setInitialHash() {
+                    // Set initial page hash after a short delay
+                    setTimeout(() => {
+                        this.pageHash = this.generateHash(document.documentElement.outerHTML);
+                        localStorage.setItem('pageHash', this.pageHash);
+                        console.log('📝 Initial page hash set:', this.pageHash.substring(0, 20) + '...');
+                    }, 1000);
+                },
+
+                generateHash(content) {
+                    return content.length + '_' + content.substring(0, 100).replace(/\s/g, '');
+                },
+
+                async checkForUpdates() {
+                    if (!this.isActive) return;
+
+                    try {
+                        const response = await fetch('/?t=' + Date.now(), {
+                            method: 'GET',
+                            cache: 'no-cache',
+                            headers: {
+                                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                                'Pragma': 'no-cache',
+                                'Expires': '0'
+                            }
+                        });
+
+                        const content = await response.text();
+                        const currentHash = this.generateHash(content);
+                        const storedHash = localStorage.getItem('pageHash');
+
+                        if (storedHash && storedHash !== currentHash) {
+                            console.log('🔄 Content changed! Reloading...');
+                            this.triggerReload();
+                        }
+
+                    } catch (error) {
+                        console.log('⚠️ Update check failed:', error.message);
+                        // Continue checking - server might be restarting
+                    }
+                },
+
+                triggerReload() {
+                    this.isReloading = true;
+                    setTimeout(() => {
+                        location.reload();
+                    }, 500);
+                },
+
+                startWatching() {
+                    // Check for updates every 3 seconds
+                    this.updateInterval = setInterval(() => {
+                        this.checkForUpdates();
+                    }, 3000);
+
+                    console.log('👀 Started watching for changes every 3 seconds');
+                },
+
+                stopWatching() {
+                    if (this.updateInterval) {
+                        clearInterval(this.updateInterval);
+                        this.updateInterval = null;
+                        console.log('🛑 Stopped watching for changes');
+                    }
+                },
+
+                toggleAutoReload() {
+                    this.isActive = !this.isActive;
+                    if (this.isActive) {
+                        this.startWatching();
+                    } else {
+                        this.stopWatching();
+                    }
+                },
+
+                // Cleanup when component is destroyed
+                destroy() {
+                    this.stopWatching();
+                }
+            }
+        }
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (window.Alpine && window.Alpine.store) {
+                console.log('🧹 Cleaning up auto-reload...');
+            }
+        });
+    </script>
 
 </body>
 

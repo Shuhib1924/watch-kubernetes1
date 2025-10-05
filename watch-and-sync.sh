@@ -62,6 +62,7 @@ sync_html() {
     start_port_forward
 
     echo "✅ [$(date '+%H:%M:%S')] Changes live at http://localhost:$PORT"
+    echo "🌐 [$(date '+%H:%M:%S')] Browser will auto-reload in ~3 seconds..."
     echo ""
 }
 
