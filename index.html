@@ -8,29 +8,36 @@
     <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
     <script src="https://unpkg.com/alpinejs"
             defer></script>
-    <title>Auto-Sync Demo</title>
+    <title>new demo</title>
 </head>
 
 <body x-data="autoReload()">
     <div class="container mx-auto p-8">
-        <h1 class="text-4xl font-bold text-green-600 mb-4">🚀 TEST SUCCESSFUL!</h1>
+        <h1 class="text-4xl font-bold text-green-600 mb-4">🚀 TEST SUCCESSFUL - NEW RELOAD WORKING!</h1>
         <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
             ✅ Auto-sync is working! This change was detected and synced to Kubernetes automatically.
         </div>
         <div class="mt-4 p-4 bg-yellow-100 border border-yellow-400 text-yellow-700 rounded">
-            📝 Test: Edit this file → Watch script detects → Kubernetes updates → Browser reloads
-        </div>
+            📝 Test: Edit this file → Watch script detects → Kubernetes updates → Browser reloads ONLY after Stage 6 ✅
+            </div>
+            <div class="mt-4 p-4 bg-blue-100 border border-blue-400 text-blue-700 rounded"
+                 x-show="syncInProgress">
+                ⏳ Kubernetes sync in progress... Browser will reload when Stage 6 (port forwarding) is complete.
+            </div>
     </div>
 
     <!-- Auto-reload Script -->
     <script>
         function autoReload() {
             return {
+                lastReloadSignal: '',
                 contentSignature: '',
+                syncInProgress: false,
 
                 init() {
                     setTimeout(() => {
                         this.setInitialSignature();
+                        this.loadLastReloadSignal();
                         this.startWatching();
                     }, 2000);
                 },
@@ -43,23 +50,65 @@
                     sessionStorage.setItem('contentSignature', this.contentSignature);
                 },
 
-                async checkForUpdates() {
+                async loadLastReloadSignal() {
                     try {
-                        const response = await fetch('/?v=' + Date.now(), { cache: 'no-cache' });
-                        const content = await response.text();
-                        const cleanContent = content
-                            .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-                            .replace(/\s+/g, ' ').trim();
-
-                        const currentSignature = cleanContent.length + cleanContent.slice(0, 100);
-                        const storedSignature = sessionStorage.getItem('contentSignature');
-
-                        if (storedSignature && storedSignature !== currentSignature) {
-                            sessionStorage.removeItem('contentSignature');
-                            location.reload();
+                        const response = await fetch('/reload-signal.txt?v=' + Date.now(), { cache: 'no-cache' });
+                        if (response.ok) {
+                            this.lastReloadSignal = await response.text();
+                            sessionStorage.setItem('lastReloadSignal', this.lastReloadSignal);
                         }
                     } catch (error) {
-                    // Server restarting, continue checking
+                        // File might not exist yet, that's okay
+                        this.lastReloadSignal = sessionStorage.getItem('lastReloadSignal') || '';
+                    }
+                },
+
+                async checkForUpdates() {
+                    try {
+                        // Check reload signal first
+                        const signalResponse = await fetch('/reload-signal.txt?v=' + Date.now(), { cache: 'no-cache' });
+                        if (signalResponse.ok) {
+                            const currentSignal = await signalResponse.text();
+                            const storedSignal = sessionStorage.getItem('lastReloadSignal') || '';
+
+                            console.log('🔍 Signal check:', { current: currentSignal.trim(), stored: storedSignal.trim() });
+
+                            // If signal changed and is not "syncing", check content and potentially reload
+                            if (currentSignal.trim() !== storedSignal.trim() && currentSignal.trim() !== 'syncing') {
+                        // Check if content actually changed
+                                const response = await fetch('/?v=' + Date.now(), { cache: 'no-cache' });
+                                const content = await response.text();
+                                const cleanContent = content
+                                    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+                                    .replace(/\s+/g, ' ').trim();
+
+                                const currentSignature = cleanContent.length + cleanContent.slice(0, 100);
+                                const storedSignature = sessionStorage.getItem('contentSignature');
+
+                                if (storedSignature && storedSignature !== currentSignature) {
+                                    // Content changed AND sync is complete - safe to reload
+                                    console.log('🔄 Reloading: Content changed and Stage 6 complete');
+                                    sessionStorage.removeItem('contentSignature');
+                                    sessionStorage.setItem('lastReloadSignal', currentSignal);
+                                    location.reload();
+                                } else if (!storedSignature) {
+                                    // First load, set the signature
+                                    this.setInitialSignature();
+                                    sessionStorage.setItem('lastReloadSignal', currentSignal);
+                                }
+                            } else if (currentSignal.trim() === 'syncing') {
+                                console.log('⏳ Sync in progress...');
+                                this.syncInProgress = true;
+                            } else {
+                                this.syncInProgress = false;
+                            }
+                        } else {
+                            console.log('⚠️ Cannot access reload signal');
+                        }
+                    } catch (error) {
+                        // Server restarting, continue checking
+                        console.log('🔄 Server error, continuing to check...');
+                        this.syncInProgress = false;
                     }
                 },
 

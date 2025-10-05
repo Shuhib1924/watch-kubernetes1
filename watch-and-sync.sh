@@ -17,7 +17,7 @@ start_port_forward() {
     [ ! -z "$PF_PID" ] && kill $PF_PID 2>/dev/null
     kubectl port-forward service/$SERVICE_NAME $PORT:80 >/dev/null 2>&1 &
     PF_PID=$!
-    sleep 2
+    # sleep 2
 }
 
 sync_html() {
@@ -28,7 +28,10 @@ sync_html() {
     # Stage 1: Update ConfigMap
     local stage_start=$(date +%s)
     echo "  📝 Stage 1: Updating ConfigMap..."
-    kubectl create configmap nginx-html --from-file=index.html=./$HTML_FILE --dry-run=client -o yaml | kubectl apply -f - >/dev/null 2>&1
+    # Create a temporary reload signal file to include in configmap
+    echo "syncing" > reload-signal.txt
+    kubectl create configmap nginx-html --from-file=index.html=./$HTML_FILE --from-file=reload-signal.txt=reload-signal.txt --dry-run=client -o yaml | kubectl apply -f - >/dev/null 2>&1
+    rm -f reload-signal.txt
     local stage_end=$(date +%s)
     echo "     ✅ ConfigMap updated ($((stage_end - stage_start))s)"
 
@@ -56,7 +59,7 @@ sync_html() {
     # Stage 5: Stabilization wait
     stage_start=$(date +%s)
     echo "  ⌛ Stage 5: Stabilization wait..."
-    sleep 2
+    # sleep 2
     stage_end=$(date +%s)
     echo "     ✅ Stabilized ($((stage_end - stage_start))s)"
 
@@ -64,9 +67,15 @@ sync_html() {
     stage_start=$(date +%s)
     echo "  🌐 Stage 6: Restarting port forwarding..."
     start_port_forward
-    sleep 1
+    # sleep 1
     stage_end=$(date +%s)
     echo "     ✅ Port forwarding ready ($((stage_end - stage_start))s)"
+
+    # Update reload signal in ConfigMap to indicate sync complete
+    echo "$(date +%s)" > reload-signal.txt
+    kubectl create configmap nginx-html --from-file=index.html=./$HTML_FILE --from-file=reload-signal.txt=reload-signal.txt --dry-run=client -o yaml | kubectl apply -f - >/dev/null 2>&1
+    rm -f reload-signal.txt
+    echo "     🔄 Reload signal updated - browser can now reload"
 
     # Total duration
     local end_time=$(date +%s)
@@ -78,17 +87,22 @@ sync_html() {
 start_port_forward
 sync_html
 
+# Initialize reload signal file for initial sync
+echo "$(date +%s)" > reload-signal.txt
+kubectl create configmap nginx-html --from-file=index.html=./$HTML_FILE --from-file=reload-signal.txt=reload-signal.txt --dry-run=client -o yaml | kubectl apply -f - >/dev/null 2>&1
+rm -f reload-signal.txt
+
 last_modified=$(stat -c %Y "$HTML_FILE" 2>/dev/null || stat -f %m "$HTML_FILE" 2>/dev/null)
 
 echo "👀 [$(date '+%H:%M:%S')] Watching for changes..."
 
 while true; do
-    sleep 0.1
+    # sleep 0.1
     current_modified=$(stat -c %Y "$HTML_FILE" 2>/dev/null || stat -f %m "$HTML_FILE" 2>/dev/null)
 
     if [ "$current_modified" != "$last_modified" ]; then
         echo "📝 [$(date '+%H:%M:%S')] File change detected! Waiting for save completion..."
-        sleep 1  # Wait for save to complete
+        # sleep 1  # Wait for save to complete
         sync_html
         last_modified=$current_modified
         echo "👀 [$(date '+%H:%M:%S')] Resuming watch..."
