@@ -58,11 +58,17 @@ sync_html() {
     # Wait for readiness
     kubectl wait --for=condition=Ready pod/nginx --timeout=30s >/dev/null 2>&1
 
+    # Wait a bit more for the pod to fully start serving content
+    sleep 2
+
     # Restart port forwarding since pod restarted
     start_port_forward
 
-    echo "✅ [$(date '+%H:%M:%S')] Changes live at http://localhost:$PORT"
-    echo "🌐 [$(date '+%H:%M:%S')] Browser will auto-reload in ~3 seconds..."
+    # Give port forwarding time to stabilize
+    sleep 2
+
+    echo "✅ [$(date '+%H:%M:%S')] Changes synced and pod ready"
+    echo "🌐 [$(date '+%H:%M:%S')] Port forwarding stable - browser will detect changes"
     echo ""
 }
 
